@@ -9,14 +9,12 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Builder
 @Entity
 @Getter
 @Setter
-@Table(name = "users")
+@Table(name = "`users`")
 @NoArgsConstructor
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
@@ -51,8 +49,10 @@ public class User {
     @Enumerated(EnumType.STRING)
     private AuthMethod provider;
 
-    private String providerId;
     private String profilePictureUrl;
+
+    private Long resendVerificationCount = 0L;
+
     @OneToOne
     private Role role;
 

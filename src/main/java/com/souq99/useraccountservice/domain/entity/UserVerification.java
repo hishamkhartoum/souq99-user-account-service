@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.SoftDelete;
 import org.springframework.data.annotation.CreatedDate;
 
 import java.time.LocalDateTime;
@@ -16,7 +15,6 @@ import java.time.LocalDateTime;
 @Builder
 @Data
 @Table(name = "users_verification")
-@SoftDelete
 public class UserVerification{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

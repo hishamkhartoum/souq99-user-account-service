@@ -9,4 +9,6 @@ public interface AuthService {
     Response<LoginResponse> login(LoginRequest loginRequest);
 
     Response<?> verifyAccountBySMS(VerifyAccountDTO verifyAccount);
+
+    Response<?> resendVerifyCodeRequest(@Valid ResendVerifyCodeRequest request);
 }

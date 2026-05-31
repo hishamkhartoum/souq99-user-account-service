@@ -37,6 +37,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
+    private static final long MAX_RESEND_ATTEMPTS = 1;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
@@ -95,7 +96,7 @@ public class AuthServiceImpl implements AuthService {
         Locale locale = getLocale();
         User user = userRepository.findByPhone(verifyAccount.getPhone())
                 .orElseThrow(() -> new NotFoundException(messageService.getLocalizedMessage("user.not.found.generic", locale)));
-        UserVerification userVerification = userVerificationRepo.findByEmail(user.getEmail())
+        UserVerification userVerification = userVerificationRepo.findByPhone(user.getPhone())
                 .orElseThrow(() -> new NotFoundException(messageService.getLocalizedMessage("user.cannot.be.verified", locale)));
         if (!userVerification.getCode().equals(verifyAccount.getCode())) {
             if (userVerification.getFailedAttempts() < 3) {
@@ -120,14 +121,51 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    private void sendRegistrationSMS(RegistrationRequest request, User user, String code) {
+    @Transactional
+    @Override
+    public Response<?> resendVerifyCodeRequest(ResendVerifyCodeRequest request) {
+        Locale locale = getLocale();
+        User user = userRepository.findByPhone(request.getPhone())
+                .orElseThrow(() -> new NotFoundException(messageService.getLocalizedMessage("user.not.found.generic", locale)));
+        long count = user.getResendVerificationCount() != null ? user.getResendVerificationCount() : 0L;
+        UserVerification userVerification = userVerificationRepo.findByPhone(request.getPhone()).orElseThrow(
+                () -> new NotFoundException(messageService.getLocalizedMessage("user.cannot.be.verified", locale)));
+        if (count >= MAX_RESEND_ATTEMPTS) {
+            userVerificationRepo.delete(userVerification);
+            userRepository.delete(user);
+
+            return Response.builder()
+                    .statusCode(429)
+                    .message(messageService.getLocalizedMessage(
+                            "verification.limit.exceeded", locale))
+                    .build();
+        }
+
+        user.setResendVerificationCount(count + 1);
+        userRepository.save(user);
+
+        String code = codeGenerator.generateUniqueNumbers();
+        userVerification.setCode(code);
+        userVerificationRepo.save(userVerification);
+
+        sendRegistrationSMS(user, code);
+
+        return Response.<String>builder()
+                .statusCode(200)
+                .message(messageService.getLocalizedMessage(
+                        "resend.registration.success", locale))
+                .data("success")
+                .build();
+    }
+
+    private void sendRegistrationSMS(User user, String code) {
 
         log.info("Sending code to phone number: {}",user.getPhone());
         UserRegistrationEvent verificationCode = UserRegistrationEvent.builder()
                 .recipientPhone(user.getPhone())
                 .message("Your verification code for Souq99 is: ")
                 .templateVariables(Map.of(
-                        "name", request.getName(),
+                        "name", user.getName(),
                         "code", code
                 ))
                 .build();
@@ -151,23 +189,23 @@ public class AuthServiceImpl implements AuthService {
                                                 RegistrationRequest request,
                                                 Locale locale) {
 
-        if (user.isEmailVerified()) {
+        if (user.isPhoneVerified()) {
             throw new BadRequestException(
-                    messageService.getLocalizedMessage("user.email.exists", locale)
+                    messageService.getLocalizedMessage("user.phone.exists", locale)
             );
         }
 
         String code = codeGenerator.generateUniqueNumbers();
-        String email = user.getEmail();
+        String phone = user.getPhone();
 
-        UserVerification verification = userVerificationRepo.findByEmail(email)
+        UserVerification verification = userVerificationRepo.findByPhone(phone)
                 .map(v -> {
-                    log.info("Resending verification code to existing user: {}", email);
+                    log.info("Resending verification code to existing user: {}", phone);
                     v.setCode(code);
                     return v;
                 })
                 .orElseGet(() -> UserVerification.builder()
-                        .email(email)
+                        .phone(phone)
                         .failedAttempts(0L)
                         .code(code)
                         .build()
@@ -175,12 +213,12 @@ public class AuthServiceImpl implements AuthService {
 
         userVerificationRepo.save(verification);
 
-        sendRegistrationSMS(request, user, code);
+        sendRegistrationSMS(user, code);
 
         return Response.<String>builder()
                 .statusCode(200)
                 .message(messageService.getLocalizedMessage("verification.send", locale))
-                .data(email)
+                .data("success")
                 .build();
     }
 
@@ -202,14 +240,14 @@ public class AuthServiceImpl implements AuthService {
         String code = codeGenerator.generateUniqueNumbers();
 
         UserVerification verification = UserVerification.builder()
-                .email(savedUser.getEmail())
+                .phone(savedUser.getPhone())
                 .failedAttempts(0L)
                 .code(code)
                 .build();
 
         userVerificationRepo.save(verification);
 
-        sendRegistrationSMS(request, savedUser, code);
+        sendRegistrationSMS(savedUser, code);
 
         log.info("Verification email sent to: {}", savedUser.getEmail());
 

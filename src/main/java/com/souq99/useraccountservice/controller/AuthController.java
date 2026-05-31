@@ -50,4 +50,9 @@ public class AuthController {
     public ResponseEntity<Response<?>> verifyAccount(@RequestBody @Valid VerifyAccountDTO verifyAccount){
         return ResponseEntity.ok(authService.verifyAccountBySMS(verifyAccount));
     }
+
+    @PostMapping("/resend")
+    public ResponseEntity<Response<?>> resendVerify(@RequestBody @Valid ResendVerifyCodeRequest request){
+        return ResponseEntity.ok(authService.resendVerifyCodeRequest(request));
+    }
 }

@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface UserVerificationRepo extends JpaRepository<UserVerification,Long> {
-    Optional<UserVerification> findByEmail(String email);
+    Optional<UserVerification> findByPhone(String phone);
 }
